@@ -7,6 +7,7 @@ import { UserModule } from './user/user.module';
 import { ConfigModule } from '@nestjs/config';
 import { RefreshTokenService } from './refresh-token/refresh-token.service';
 import { RefreshTokenModule } from './refresh-token/refresh-token.module';
+import { TutorModule } from './tutor/tutor.module';
 import configuration from './config/configuration';
 
 @Module({
@@ -20,6 +21,7 @@ import configuration from './config/configuration';
     AuthModule,
     UserModule,
     RefreshTokenModule,
+    TutorModule,
   ],
   controllers: [AppController],
   providers: [AppService, RefreshTokenService],

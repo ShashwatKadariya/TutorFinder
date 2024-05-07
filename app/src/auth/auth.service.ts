@@ -1,5 +1,7 @@
 import {
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   UnauthorizedException,
   UseInterceptors,
@@ -17,6 +19,8 @@ import {
   refreshTokenCookieConfig,
 } from 'src/config';
 import { User } from '@prisma/client';
+import { refreshTokenCreate } from 'src/refresh-token/types';
+import { CreateUserDto } from 'src/user/dto';
 
 @Injectable()
 export class AuthService {
@@ -28,19 +32,13 @@ export class AuthService {
     private refreshTokenService: RefreshTokenService,
   ) {}
 
-  async validateUser(email: string, password: string) {
-    const user = await this.userService.findOneWithEmail(email);
-    if (!user) return null;
-    if (!(await this.userService.verifyPassword(password, user.password))) {
-      return null;
-    }
-    return user;
-  }
-
-  async validateUserJwt(id: string) {
-    const user = await this.userService.findOneWithId(id);
-    if (!user) return null;
-    return user;
+  async signup(
+    createUserDto: CreateUserDto,
+    tokenInCookie: string,
+    res: Response,
+  ) {
+    const user = await this.userService.create(createUserDto);
+    return await this.login(user, tokenInCookie, res);
   }
 
   async login(user: User, tokenInCookie: string, res: Response) {
@@ -48,12 +46,6 @@ export class AuthService {
       email: user.email,
       sub: user.id,
     };
-    const access_token = this.jwtService.sign(payload);
-    const refresh_token = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('jwt.refresh_token.key'),
-      expiresIn: this.configService.get<string>('jwt.refresh_token.expiresIn'),
-    });
-
     // reuse detection
     if (tokenInCookie) {
       const foundRefreshToken =
@@ -68,10 +60,19 @@ export class AuthService {
         clearRefreshTokenCookieConfig,
       );
     }
-    const refreshTokenInDb = await this.refreshTokenService.createRefreshToken(
+    const access_token = this.jwtService.sign(payload);
+    const refresh_token = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('jwt.refresh_token.key'),
+      expiresIn: this.configService.get<string>('jwt.refresh_token.expiresIn'),
+    });
+
+    const createRefreshInput: refreshTokenCreate = {
       refresh_token,
-      user.id,
-    );
+      kind: 'userId',
+      userId: user.id,
+    };
+    const refreshTokenInDb =
+      await this.refreshTokenService.createRefreshToken(createRefreshInput);
     res.cookie(
       this.configService.get<string>('jwt.refresh_token.cookie_name'),
       refresh_token,
@@ -119,11 +120,13 @@ export class AuthService {
       secret: this.configService.get<string>('jwt.refresh_token.key'),
       expiresIn: this.configService.get<string>('jwt.refresh_token.expiresIn'),
     });
-
-    const tokenInDB = await this.refreshTokenService.createRefreshToken(
+    const createRefreshInput: refreshTokenCreate = {
       refresh_token,
-      user.id,
-    );
+      kind: 'userId',
+      userId: user.id,
+    };
+    const tokenInDB =
+      await this.refreshTokenService.createRefreshToken(createRefreshInput);
 
     res.cookie(
       this.configService.get<string>('jwt.refresh_token.cookie_name'),
