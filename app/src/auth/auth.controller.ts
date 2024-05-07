@@ -1,12 +1,10 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
   HttpStatus,
   Post,
   Req,
-  Request,
   Res,
   UseGuards,
   UseInterceptors,
@@ -16,13 +14,14 @@ import { AuthService } from './auth.service';
 import { SignInDto } from './dto';
 import { PasswordSanitizerInterceptor } from 'src/user/interceptor';
 import { LocalAuthGuard, RefreshAuthGuard } from './guard';
-import {
-  clearRefreshTokenCookieConfig,
-  refreshTokenCookieConfig,
-} from 'src/config';
-import { ApiResponse, Public, successResponse } from 'src/utils';
+import { ApiResponse, Public } from 'src/utils';
 import { ConfigService } from '@nestjs/config';
 import { RefreshTokenService } from 'src/refresh-token/refresh-token.service';
+import { Response } from 'express';
+
+import { UserDecorator } from 'src/utils';
+import { User } from '@prisma/client';
+import { CreateUserDto } from 'src/user/dto';
 
 @UseInterceptors(PasswordSanitizerInterceptor)
 @Controller('auth')
@@ -34,19 +33,47 @@ export class AuthController {
   ) {}
 
   @Public()
+  @Post('signUp')
+  async signUp(
+    @Body() createUserDto: CreateUserDto,
+    @Req() req,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokenInCookie =
+      req.cookies?.[
+        this.configService.get<string>('jwt.refresh_token.cookie_name')
+      ];
+    const { access_token, refresh_token } = await this.authService.signup(
+      createUserDto,
+      tokenInCookie,
+      res,
+    );
+    const responseMessage: ApiResponse<{}> = {
+      statusCode: HttpStatus.OK,
+      body: {
+        message: {
+          access_token,
+        },
+      },
+    };
+    return responseMessage.body;
+  }
+
+  @Public()
   @UseGuards(LocalAuthGuard)
   @Post('login')
   async login(
     @Body() signInDto: SignInDto,
-    @Request() req,
-    @Res({ passthrough: true }) res,
+    @Req() req,
+    @UserDecorator() user: User,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const tokenInCookie =
       req.cookies?.[
         this.configService.get<string>('jwt.refresh_token.cookie_name')
       ];
     const { access_token, refresh_token } = await this.authService.login(
-      req.user,
+      user,
       tokenInCookie,
       res,
     );
@@ -64,9 +91,7 @@ export class AuthController {
   @Public()
   @UseGuards(RefreshAuthGuard)
   @Get('refresh')
-  async refresh(@Req() req, @Res() res) {
-    const user = req.user;
-
+  async refresh(@Req() req, @UserDecorator() user: User, @Res() res: Response) {
     const tokenInCookie =
       req.cookies?.[
         this.configService.get<string>('jwt.refresh_token.cookie_name')
@@ -92,7 +117,7 @@ export class AuthController {
   @Public()
   @UseGuards(RefreshAuthGuard)
   @Post('logout')
-  async logout(@Req() req, @Res() res) {
+  async logout(@Req() req, @Res() res: Response) {
     const tokenInCookie =
       req.cookies?.[
         this.configService.get<string>('jwt.refresh_token.cookie_name')

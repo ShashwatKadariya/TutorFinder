@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PrismaModule } from 'src/prisma/prisma.module';
@@ -40,5 +40,6 @@ import { RefreshTokenService } from 'src/refresh-token/refresh-token.service';
       inject: [ConfigService],
     }),
   ],
+  exports: [AuthService],
 })
 export class AuthModule {}

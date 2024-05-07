@@ -4,15 +4,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
-import { Response } from 'express';
-import { RefreshStrategy } from 'src/auth/strategy';
-import {
-  clearRefreshTokenCookieConfig,
-  refreshTokenCookieConfig,
-} from 'src/config';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { JwtType } from 'src/utils';
+import { refreshTokenCreate } from './types';
+import { RefreshToken } from '@prisma/client';
 
 @Injectable()
 export class RefreshTokenService {
@@ -21,14 +15,25 @@ export class RefreshTokenService {
     private configService: ConfigService,
   ) {}
 
-  async createRefreshToken(token: string, userId: string) {
-    const refreshTokenDb = await this.prisma.refreshToken.create({
-      data: {
-        token,
-        userId,
-      },
-    });
-    return refreshTokenDb;
+  async createRefreshToken(input: refreshTokenCreate) {
+    let refreshTokenDb: RefreshToken;
+    if (input.kind === 'userId') {
+      refreshTokenDb = await this.prisma.refreshToken.create({
+        data: {
+          token: input.refresh_token,
+          userId: input.userId,
+          tutorId: null,
+        },
+      });
+    } else if (input.kind === 'tutorId') {
+      refreshTokenDb = await this.prisma.refreshToken.create({
+        data: {
+          token: input.refresh_token,
+          userId: null,
+          tutorId: input.tutorId,
+        },
+      });
+    }
   }
 
   async findRefreshTokenByToken(token: string) {
